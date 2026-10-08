@@ -36,7 +36,10 @@ export const getUserOrderList: RequestHandler = async (req, res, next) => {
 
 export const getOrderById: RequestHandler = async (req, res, next) => {
     try {
-        const result = await OrderModel.findById(req.params.id).populate({
+        const result = await OrderModel.findOne({
+            _id: req.params.id,
+            orderUserId: req.user?._id
+        }).populate({
             path: 'roomId'
         });
         if (!result) {

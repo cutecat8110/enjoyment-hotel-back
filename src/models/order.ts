@@ -47,6 +47,7 @@ const orderSchema = new Schema<IOrder>(
         },
         orderUserId: {
             type: Schema.Types.ObjectId,
+            index: true,
             ref: 'user',
             required: [true, 'orderUserId 未填寫']
         },

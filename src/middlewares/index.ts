@@ -1,6 +1,8 @@
 import type { RequestHandler } from 'express';
 import createHttpError from 'http-errors';
 import validator from 'validator';
+import { isObjectIdOrHexString } from 'mongoose';
+import { parseStayDate, todayInTaipei } from '@/utils/stayDates';
 import RoomModel from '@/models/room';
 import UsersModel from '@/models/user';
 import { verifyToken } from '@/utils';
@@ -18,12 +20,13 @@ export const isAuth: RequestHandler = async (req, _res, next) => {
         }
      */
     try {
-        const token = `${req.headers.authorization?.replace('Bearer ', '')}`;
+        const token = req.headers.authorization?.replace(/^Bearer\s+/i, '') || '';
         const result = verifyToken(token);
 
+        if (!isObjectIdOrHexString(result.userId)) throw createHttpError(401, '請重新登入');
         const user = await UsersModel.findById(result.userId);
         if (!user) {
-            throw createHttpError(404, '此使用者不存在');
+            throw createHttpError(401, '請重新登入');
         }
 
         req.user ??= user;
@@ -34,19 +37,13 @@ export const isAuth: RequestHandler = async (req, _res, next) => {
     }
 };
 
-// TODO:實作管理員權限
-export const isAdmin: RequestHandler = async (req, res, next) => {
-    /**
-     * #swagger.security = [{ "bearerAuth": [] }]
-     * #swagger.responses[403] = {
-            description: '重新登入',
-            schema: {
-                "status": false,
-                "message": "請重新登入",
-            }
-        }
-     */
-    isAuth(req, res, next);
+// Missing roles remain regular members; public signup cannot grant this role.
+export const isAdmin: RequestHandler = (req, res, next) => {
+    isAuth(req, res, (error) => {
+        if (error) return next(error);
+        if (req.user?.role !== 'admin') return next(createHttpError(403, '需要管理員權限'));
+        return next();
+    });
 };
 
 export const checkRequestBodyValidator: RequestHandler = (req, _res, next) => {
@@ -104,30 +101,28 @@ export const checkOrder: RequestHandler = async (req, _res, next) => {
     try {
         const { roomId, checkInDate, checkOutDate, peopleNum } = req.body;
 
+        if (!isObjectIdOrHexString(roomId)) throw createHttpError(400, 'roomId 格式錯誤');
         const roomInfo = await RoomModel.findOne({
             _id: roomId,
             status: 1
-        });
+        }).select('maxPeople').lean();
 
         if (!roomInfo) {
             throw createHttpError(404, '此房型不存在');
         }
 
-        if (peopleNum > roomInfo.maxPeople) {
-            throw new Error('peopleNum 錯誤');
+        if (!Number.isInteger(peopleNum) || peopleNum < 1 || peopleNum > roomInfo.maxPeople) {
+            throw createHttpError(400, 'peopleNum 錯誤');
         }
-
-        if (!validator.isDate(checkInDate)) {
-            throw new Error('checkInDate 格式錯誤');
+        const checkIn = parseStayDate(checkInDate);
+        const checkOut = parseStayDate(checkOutDate);
+        if (!checkIn) throw createHttpError(400, 'checkInDate 格式錯誤');
+        if (!checkOut) throw createHttpError(400, 'checkOutDate 格式錯誤');
+        if (checkIn < todayInTaipei() || checkOut <= checkIn) {
+            throw createHttpError(400, '入住不得早於今天，退房需晚於入住日期');
         }
-
-        if (!validator.isDate(checkOutDate)) {
-            throw new Error('checkOutDate 格式錯誤');
-        }
-
-        if (new Date(checkInDate) > new Date(checkOutDate)) {
-            throw new Error('checkInDate 錯誤');
-        }
+        req.body.checkInDate = checkIn;
+        req.body.checkOutDate = checkOut;
 
         next();
     } catch (error) {

@@ -1,3 +1,20 @@
+# enjoyment-hotel-back：團體後端 QA 分支
+
+修正與測試見 [QA_CHANGELOG.md](QA_CHANGELOG.md)。保留團體版地址格式與房型欄位，未替換成個人版資料。
+
+使用 Node 22：`nvm use` → `npm ci` → `cp .env.example .env`，設定 DATABASE、DATABASE_PASSWORD、JWT_SECRET、JWT_EXPIRES_DAY、PORT；SMTP 另需 EMAILER_USER、EMAILER_PASSWORD。秘密只放本機／平台設定。
+
+- 開發：`npm run dev`
+- 正式：`npm run build && npm start`
+- 隔離回歸：`npm test`
+- 正式 bundle 回歸：`npm run test:build`，啟動獨立 MongoDB 7.0.24 與 HTTP 子程序，不使用正式資料、不寄信。
+
+Render `freyja` 目前手動暫停。本輪只推送 `portfolio/qa`，未切換來源或恢復服務。管理 API 要求 role=admin；沒有角色的既有帳號視為一般會員，註冊與會員更新不能設定角色。正式部署前由資料庫管理者確認管理帳號，不應把一般會員一律升權。
+
+下方保留原始 API 使用說明；本節 Node、權限及測試指令優先。
+
+---
+
 <!-- 底下標籤來源參考寫法可至：https://github.com/Envoy-VC/awesome-badges#github-stats -->
 
 # 六角旅館 API 系統
@@ -10,7 +27,7 @@
 ## 關於專案
 
 - 六角學院的旅館 API 系統
-- 注意事項：此專案沒有實作使用者權限機制，因此只要取得 Token 都可以打 CRUD API
+- QA 分支已加入管理員與資料擁有者權限；一般會員不能存取管理 CRUD API。
 
 ## API 串接範例
 
@@ -224,8 +241,7 @@ docker run -p 3005:3005 -d freyja:v1
 - 參考資料 : [關於從 Heroku 跳到 Render 這件事情](https://israynotarray.com/other/20221213/3036227586/)
 
 ## 待辦事項
-- 實作管理員權限
-    - 由於本專案沒有實作會員管理機制，因此預留了 isAdmin  middleware 給予自行實作。  
+- QA 分支已實作 isAdmin；管理者角色需由資料庫管理者指定。
 
 ## 補充資源
 
@@ -236,3 +252,8 @@ docker run -p 3005:3005 -d freyja:v1
 - [Node.js 實戰密技大統整（套件運用、金流、第三方登入、雲服務、Docker）](https://www.casper.tw/development/2023/10/15/ironman-collection/)
 - [《Node.js 不負責系列：把前端人員當作後端來用，就算是前端也能嘗試寫的後端～原來 Node.js 可以做這麼多事～》](https://ithelp.ithome.com.tw/articles/10339734)
 - [被迫吃芒果的前端工程師](https://israynotarray.com/nodejs/20220416/2123631571/)
+
+## 資料庫與查詢效能
+
+啟動時先等待 MongoDB；失敗退出 1。`GET /` 為資料庫連線就緒檢查（200／503、no-store），可設為 Render Health Check Path。已斷線時 API 回 503，使用者可稍後再試；寫入操作不應由前端自動重送。
+email、orderUserId 為非唯一索引，由既有 Mongoose autoIndex 流程建立；不移除舊資料或修改唯一性。首次部署需留意索引建立，若正式環境關閉 autoIndex，需由資料庫管理者建立對應非唯一索引。

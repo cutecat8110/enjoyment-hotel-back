@@ -8,7 +8,9 @@
         "build": "tsc && node develop/build.js",
         "start": "node dist/index.js",
         "swagger-autogen": "node develop/swagger.js",
-        "postinstall": "npm run swagger-autogen"
+        "postinstall": "npm run swagger-autogen",
+        "test": "tsx --test tests/*.test.ts",
+        "test:build": "npm run build && tsx --test tests/build-smoke.ts"
     },
     "devDependencies": {
         "@types/bcryptjs": "^2.4.6",
@@ -18,9 +20,12 @@
         "@types/morgan": "^1.9.9",
         "@types/node": "^20.9.0",
         "@types/nodemailer": "^6.4.14",
+        "@types/supertest": "^7.2.1",
         "@types/swagger-ui-express": "^4.1.6",
         "@types/validator": "^13.11.6",
         "esbuild": "0.19.5",
+        "mongodb-memory-server": "^11.3.0",
+        "supertest": "^7.3.1",
         "swagger-autogen": "^2.23.7",
         "tsx": "^4.1.1",
         "typescript": "^5.2.2"
@@ -31,13 +36,13 @@
         "dotenv": "^16.3.1",
         "express": "^4.18.2",
         "jsonwebtoken": "^9.0.2",
-        "mongoose": "7.6.3",
+        "mongoose": "7.8.12",
         "morgan": "^1.10.0",
-        "nodemailer": "^6.9.7",
+        "nodemailer": "10.0.16",
         "swagger-ui-express": "^5.0.0",
         "validator": "^13.11.0"
     },
     "engines": {
-        "node": ">=18"
+        "node": "22.x"
     }
 }

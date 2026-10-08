@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import createHttpError from 'http-errors';
 import jsonWebToken, { type JwtPayload } from 'jsonwebtoken';
 
@@ -11,7 +12,7 @@ export const verifyToken = (token: string) => {
     try {
         return jsonWebToken.verify(token, process.env.JWT_SECRET) as JwtPayload;
     } catch (error) {
-        throw createHttpError(403, '請重新登入');
+        throw createHttpError(401, '請重新登入');
     }
 };
 
@@ -31,7 +32,7 @@ const generateRandomCode = () => {
     let code = '';
 
     for (let i = 0; i < 6; i++) {
-        const randomIndex = Math.floor(Math.random() * characters.length);
+        const randomIndex = randomInt(characters.length);
         code += characters.charAt(randomIndex);
     }
 

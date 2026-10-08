@@ -1,14 +1,12 @@
 import mongoose from 'mongoose';
 
-const { DATABASE, DATABASE_PASSWORD } = process.env;
-
-mongoose.set('strictQuery', false);
-
-mongoose
-    .connect(DATABASE?.replace('<password>', `${DATABASE_PASSWORD}`))
-    .then(() => {
-        console.log('[ mongodb 連線成功 ]');
-    })
-    .catch(error => {
-        console.log('[ mongodb 連線錯誤 ]', error.message);
+// Called explicitly by the entry point so HTTP does not advertise readiness before MongoDB.
+export async function connectDatabase() {
+    const { DATABASE, DATABASE_PASSWORD } = process.env;
+    if (!DATABASE) throw new Error('DATABASE 未設定');
+    mongoose.set('strictQuery', false);
+    await mongoose.connect(DATABASE.replace('<password>', DATABASE_PASSWORD || ''), {
+        serverSelectionTimeoutMS: 30000,
+        connectTimeoutMS: 10000
     });
+}

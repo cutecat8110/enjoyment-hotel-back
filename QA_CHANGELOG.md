@@ -1,0 +1,61 @@
+# enjoyment-hotel-back QA 修正紀錄
+
+日期：2026-10-08。`portfolio/qa`，基準 `main` / `5055775c84c8db05285eb35a019863025b00bcfe`。
+團體後端與個人版同源，但本分支保留團體版 address.county=縣市、address.city=行政區，房型也不新增個人版的 layoutInfo。
+
+## 環境與驗證
+
+Node 22.23.3、macOS 27.0.1、Supertest + node:test + MongoDB Memory Server 7.0.24。
+先以同一套隔離回歸工具執行團體原始碼：11 項皆失敗（部分有前項資料變更造成的連帶失敗）；逐项檢查實際路由與修正，再擴充驗證。基準使用共用測試依賴，並非舊依賴效能基準。
+最後獨立 npm ci、16 項 API、2 項正式 bundle HTTP 測試全部通過。沒有對正式團體資料庫操作，也没有寄出真實郵件。
+
+## 已修正
+
+| 編號 | 重現方式 | 影響與原因 | 修改 | 驗證 |
+| --- | --- | --- | --- | --- |
+| BE-001 | 未帶／錯誤／過期／已不存在會員的 JWT 請求 `/user/check` | 無效登入回 403／404，前端不能可靠判斷過期；驗證码 token 類型未明確防守 | 身分驗證統一 401、驗證 userId、會員存在性；保留原 token 及 Bearer 格式 | 四種無效狀態 401、有效 token 200 |
+| BE-002 | 會員 A PUT `/user` 但傳 B 的 userId；一般會員 GET `/admin/orders` | 可修改他人基本資料；isAdmin 原本只有登入檢查 | 更新綁定 token 擁有者，偽造 userId 回 403；管理路由要求 admin，缺少角色視為 user；註冊／更新不接受角色授權 | B 資料不變；一般會員 403，隔離管理者 200，移除角色再回 403 |
+| BE-003 | A 建立訂單，B GET／DELETE 該 ID | 單筆 GET 原本未過濾擁有者，可讀取他人訂房資訊 | 查詢同時綁訂單 ID 與 token 會員；其他會員回 404 | 讀取／取消皆拒絕越權；作者可讀；資料持久化与重複取消一致 |
+| BE-004 | 同日／反向／過去／不存在日期、人數 0／小數／超額、錯誤房型 ID | 可建立零晚或過期訂單；輸入型別驗證不足 | 以台灣日曆日期驗證並正規化，退房必須晚於入住；人數正整數且不超過房型；明確 ObjectId 驗證 | 邊界皆 400；正常兩晚訂單可建立并讀回；不存在房型 404 |
+| BE-005 | 同時修改密碼及無效地址；只傳新／舊密碼之一 | 原先先寫密碼，後續個資驗證失敗仍改密碼，使用者不知結果 | 載入自己的文件、驗舊密碼、白名單欄位一起驗證並一次儲存 | 無效個資時舊密碼仍可登入；缺欄位／錯舊密碼拒絕；有效新密碼可登入 |
+| BE-006 | 同一驗證碼連續重設兩次；寄信服務失敗 | 驗證碼未消耗，可重用；寄信失敗先覆蓋舊碼 | 密碼重設以 exact verificationToken 條件原子更新並清空；密碼與驗證 token 不出現在註冊回應；驗證碼用 crypto randomInt | 同碼第二次 400；失敗不覆蓋舊碼；成功寄信替身產生新碼（沒有實寄） |
+| BE-007 | 非法 email `/verify/email`；SMTP 未啟用／失敗 | 錯誤被 next() 吃掉成 404；SMTP 等待過長，前端誤報成功 | 正確 next(error)；寄信失敗 503；SMTP 連線／招呼 15 秒、socket 20 秒；前端同步只接受 status=true | 非法 email 400；寄信不可用 503；錯誤路由測試通過 |
+| BE-008 | 原依賴與 Node 22 安裝／建置 | 舊 Mongoose、JWT 依賴與寄信套件有已知漏洞；無隔離測試入口 | 保持 Express 4／Mongoose 7，更新必要修補；Nodemailer 修補；抽出與正式相同的 createApp；固定 Node 22／npm ci | 16 項 API 測試及 2 項正式 bundle 測試通過；2026-10-08 `npm audit --omit=dev` 為 0 |
+
+API 無畫面尺寸；本輪未修改／驗證團體前端 UI。
+
+
+## 原有功能限制
+
+- 沒有日期房量庫存、金流、價格快照或訂房通知；維持原功能範圍。
+- email 使用非唯一查詢索引，既有重複資料不搬移；同時註冊的唯一性另待資料盤點。
+- 管理路由現在要求 admin，沒有 role 的既有會員視為 user；註冊與更新不能自行升權。本輪沒有授權任何真實會員。
+- Render 免費方案 SMTP 限制仍存在；本輪不更換寄信服務或方案。
+
+## 尚未驗證與發布狀態
+
+Render `freyja`（srv-cm014ada73kc73bucus0）對應此儲存庫，網址 https://freyja-7ddy.onrender.com ，目前為使用者手動暫停（Suspended by you），來源 main，最後成功版本 5055775。
+本輪準備／推送 portfolio/qa；保留暫停狀態與 main 來源，未恢復服務。團體正式 API、資料庫連線、管理者和 SMTP 因此未驗證。要恢复時先部署 QA 分支、確認既有資料庫與管理帳號再驗證前端。
+
+## 2026-10-08：雙後端比對與效能回歸
+
+環境：macOS 27.0.1、Node 22.23.3、隔離 MongoDB 7.0.24；API 無 RWD 尺寸，本輪沒有修改前端 UI。
+本輪各 16 項 API 回歸 + 2 項正式建置 HTTP 測試通過，`npm run build` 通過，`npm audit --omit=dev` 0 項。
+
+| 編號 | 重現步驟 | 影響／原因 | 修正 | 驗證結果 |
+| --- | --- | --- | --- | --- |
+| PERF-001 | 建立 1,000 筆不相關測試會員與訂單，以 email 查會員、orderUserId 查訂單，檢查 explain | 缺少查詢索引，資料增加時需掃描整個集合 | 增加 email、orderUserId 的非唯一索引；信箱存在檢查只讀 _id；訂房驗證只讀 maxPeople，保留對外回應 | 隔離資料的 email 掃描 1,002 → 1 筆，訂單 1,001 → 1 筆；IXSCAN、持久化、舊重複信箱可保留。這是文件掃描量，非線上載入速度倍數 |
+| PERF-002 | 模擬 MongoDB 斷線後呼叫根路由及房型／訂房 API；以無效 DATABASE 啟動正式 bundle | 舊健康檢查仍回 200；啟動尚未連線就 listen；API 可能等待緩衝 | 連線成功才 listen，失敗退出 1；斷線時健康檢查及新 API 工作回 503，健康回應 no-store；保留 30 秒伺服器選擇時間、連線 10 秒 | 斷線立即回 503，訂單不寫入，重連後回 200；無效設定不 listen，也不輸出設定值 |
+| PERF-003 | 用替身模擬 SMTP 成功／失敗，追蹤 verify 與 sendMail | 每封信先 verify 再 sendMail，多做一次連線與驗證 | 直接以 sendMail 結果判斷成功；保留既有逾時、失敗 503、舊驗證碼 | verify 若被呼叫則測試失敗；sendMail 成功才換碼，失敗保留碼；沒有寄出真實郵件 |
+| QA-009 | `/verify/email`、`/verify/generateEmailCode` 傳缺少／null／物件／陣列／數字 email；模擬查詢中途網路錯誤 | 型別錯誤洩露套件訊息或缺欄位仍成功；資料庫網路錯誤混為一般 400 | 查詢前檢查 email 型別與格式；已知 Mongo 連線錯誤回可辨認的 503；CastError 統一欄位錯誤 | 非法輸入回中文 400；網路失敗 503 且沒有內部設定／主機資訊 |
+
+### 相容性與部署注意
+
+- 未使用全域 lean 或回應快取，避免會員地址 virtual、舊資料預設值、管理更新立即可見性改變。
+- 非唯一索引由既有 Mongoose autoIndex 流程建立，不清除／重寫資料，不新增唯一限制。尚未做正式資料庫 explain 或大量併發測試；大型資料庫應安排索引建立時機。
+- 房型圖片仍以原網址回傳；這些後端儲存圖片網址，沒有圖片上傳／轉檔路由。本輪不改圖片內容或前端裁切。
+- 真實 SMTP、正式管理帳號與大量壓力測試仍未驗證；開發依賴全量 audit 尚有 4 項（2 moderate、2 high），未因本輪做全面工具升級。
+- 正式 bundle 的隔離驗證涵蓋啟動、健康、房型、註冊、登入、管理者拒絕、建立／讀取／取消訂房與 MongoDB 持久化；沒有寫入正式會員或訂單。
+- 本機沒有 Docker CLI，未宣稱本機 Docker build 通過；個人版可另由 Render 實際建置驗證，團體版目前暫停。
+
+技術依據：[Mongoose 連線與索引](https://mongoosejs.com/docs/connections.html)、[Nodemailer SMTP](https://nodemailer.com/smtp)、[Render 健康檢查](https://render.com/docs/health-checks)。

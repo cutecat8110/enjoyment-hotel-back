@@ -1,1 +1,11 @@
 node_modules
+.git
+.env
+.env.*
+!.env.example
+.output
+.nuxt
+dist
+tests
+qa-evidence
+*.log

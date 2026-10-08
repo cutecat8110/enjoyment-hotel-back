@@ -1,27 +1,21 @@
-import express from 'express';
-import cors from 'cors';
-import morgan from 'morgan';
 import 'dotenv/config';
-import '@/app/connection';
-import Routes from '@/routes';
-import * as Exception from '@/app/exception';
+import mongoose from 'mongoose';
+import { connectDatabase } from '@/app/connection';
+import { createApp } from '@/app/createApp';
+import { catchGlobalError } from '@/app/exception';
 
-const app = express();
+catchGlobalError();
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-app.use(cors());
-app.use(morgan('dev'));
-
-app.use('/public', express.static('public'));
-
-app.use(Routes);
-
-app.use(Exception.sendNotFoundError);
-app.use(Exception.catchCustomError);
-
-Exception.catchGlobalError();
-
-app.listen(process.env.PORT, () => {
-    console.log(`listening on http://localhost:${process.env.PORT}`);
-});
+try {
+    await connectDatabase();
+    console.log('[ mongodb 連線成功 ]');
+    const app = createApp({ logging: true });
+    app.listen(process.env.PORT, () => {
+        console.log(`listening on http://localhost:${process.env.PORT}`);
+    });
+} catch {
+    // Driver errors can contain hosts or credentials; keep deployment logs generic.
+    console.error('[ mongodb 連線失敗，服務未啟動 ]');
+    await mongoose.disconnect();
+    process.exitCode = 1;
+}

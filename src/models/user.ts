@@ -14,6 +14,7 @@ export interface IUser extends Document {
         county: string;
         city: string;
     };
+    role?: 'user' | 'admin';
     verificationToken: string;
 }
 
@@ -31,6 +32,7 @@ const userSchema = new Schema<IUser>(
         },
         email: {
             type: String,
+            index: true,
             required: [true, 'email 未填寫'],
             validate: {
                 validator(value: string) {
@@ -68,6 +70,7 @@ const userSchema = new Schema<IUser>(
                 required: [true, 'detail 未填寫']
             }
         },
+        role: { type: String, enum: ['user', 'admin'], default: 'user' },
         verificationToken: {
             type: String,
             default: '',
@@ -84,11 +87,11 @@ const userSchema = new Schema<IUser>(
 );
 
 userSchema.virtual('address.county').get(function () {
-    return ZipCodeMap.find(value => value.zipcode === this.address.zipcode)?.county;
+    return ZipCodeMap.find((value) => value.zipcode === this.address.zipcode)?.county;
 });
 
 userSchema.virtual('address.city').get(function () {
-    return ZipCodeMap.find(value => value.zipcode === this.address.zipcode)?.city;
+    return ZipCodeMap.find((value) => value.zipcode === this.address.zipcode)?.city;
 });
 
 export default model('user', userSchema);
