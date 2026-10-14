@@ -59,3 +59,9 @@ Render `freyja`（srv-cm014ada73kc73bucus0）對應此儲存庫，網址 https:/
 - 本機沒有 Docker CLI，未宣稱本機 Docker build 通過；個人版可另由 Render 實際建置驗證，團體版目前暫停。
 
 技術依據：[Mongoose 連線與索引](https://mongoosejs.com/docs/connections.html)、[Nodemailer SMTP](https://nodemailer.com/smtp)、[Render 健康檢查](https://render.com/docs/health-checks)。
+
+## 2026-10-14 · 分支整併
+
+- 將已驗證的 `portfolio/qa` 快轉整併至 `main`，保留全部提交歷史；原主分支基準為 `5055775c84c8db05285eb35a019863025b00bcfe`。
+- 本次不重新改造功能或重建既有前端產物，更新開發／發布分支說明；部署来源與公開靜態檔另行核對。歷史 QA 日期及結果仍保留。
+- 團體後端仍維持手動暫停，本輪不啟用或操作正式資料。
